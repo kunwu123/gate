@@ -1,0 +1,15 @@
+name: Workflow Keepalive
+
+on:
+  schedule:
+    - cron: '0 0 */10 * *'   # 每 10 天运行一次
+  workflow_dispatch:
+
+permissions:
+  actions: write              # 此方案需要 actions:write 权限，而非 contents
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: liskin/gh-workflow-keepalive@v1
