@@ -117,7 +117,6 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Upload artifact
-        id: upload-pages-artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: public
@@ -125,9 +124,7 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-        with:
-          artifact_id: ${{ steps.upload-pages-artifact.outputs.artifact-id }}
-          timeout: 1800000
+        # 注意：已移除导致报错的 artifact_id 和超限的 timeout 参数
 
       - name: Show site URL
         run: |
