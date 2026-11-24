@@ -2,8 +2,8 @@ name: VPN Gate Node Check
 
 on:
   schedule:
-    # 每天 0 点和 18 点运行（最接近每隔18小时一次的方案）
-    - cron: '0 0,18 * * *'
+    # 每隔 12 小时运行一次（每天 0 点和 12 点）
+    - cron: '0 */12 * * *'
   workflow_dispatch:
     inputs:
       max_nodes:
@@ -67,7 +67,7 @@ jobs:
           MIN_SUCCESS_RATIO: '0'
         run: python vpngate.py
 
-      # 【关键修复】：确保 public 目录存在，并打印内容方便排错
+      # 关键排错步骤：确保目录存在并打印文件列表
       - name: Ensure public directory exists
         run: |
           mkdir -p public
@@ -126,7 +126,6 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-        # 已移除全部 with 参数，使用默认设置即可自动找到并部署 github-pages 工件
 
       - name: Show site URL
         run: |
