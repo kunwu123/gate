@@ -1,15 +1,9 @@
 name: VPN Gate Node Check
 
-# 模板仓库默认不配置定时任务：需要自动更新时，把下面的注释替换成你自己的 cron。
-# 注意：GitHub 调度最小间隔约 5 分钟，但通常会延迟几分钟；仓库连续 60 天无提交会让定时任务自动停用。
-#
-# on:
-#   schedule:
-#     - cron: '*/30 * * * *'
-
 on:
   schedule:
-    - cron: '0 */12 * * *'
+    # 每天 0 点和 18 点运行（最接近每隔18小时一次的方案）
+    - cron: '0 0,18 * * *'
   workflow_dispatch:
     inputs:
       max_nodes:
@@ -73,6 +67,14 @@ jobs:
           MIN_SUCCESS_RATIO: '0'
         run: python vpngate.py
 
+      # 【关键修复】：确保 public 目录存在，并打印内容方便排错
+      - name: Ensure public directory exists
+        run: |
+          mkdir -p public
+          echo "=== 检查 public 目录下的文件 ==="
+          ls -la public/
+          # 如果你的脚本生成的文件不叫 public，请修改上面的 mkdir -p 和下面的 path
+
       - name: Ensure GitHub Pages is enabled
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -124,7 +126,7 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-        # 注意：已移除导致报错的 artifact_id 和超限的 timeout 参数
+        # 已移除全部 with 参数，使用默认设置即可自动找到并部署 github-pages 工件
 
       - name: Show site URL
         run: |
