@@ -2,7 +2,7 @@ name: VPN Gate Node Check
 
 on:
   schedule:
-    # 每隔 12 小时运行一次（每天 0 点和 12 点）
+    # 每隔 12 小时运行一次（每天的 0 点和 12 点）
     - cron: '0 */12 * * *'
   workflow_dispatch:
     inputs:
@@ -67,13 +67,14 @@ jobs:
           MIN_SUCCESS_RATIO: '0'
         run: python vpngate.py
 
-      # 关键排错步骤：确保目录存在并打印文件列表
+      # 【关键诊断】：如果后续部署依然报 Found 0 artifact(s)，请点开这里的日志看结果
       - name: Ensure public directory exists
         run: |
           mkdir -p public
           echo "=== 检查 public 目录下的文件 ==="
           ls -la public/
-          # 如果你的脚本生成的文件不叫 public，请修改上面的 mkdir -p 和下面的 path
+          echo "=== 统计 public 目录文件数量 ==="
+          find public -type f | wc -l
 
       - name: Ensure GitHub Pages is enabled
         env:
@@ -118,10 +119,12 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      # 升级至 v5 版本，并强制包含隐藏文件（如 .nojekyll）
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: public
+          include-hidden-files: true
 
       - name: Deploy to GitHub Pages
         id: deployment
