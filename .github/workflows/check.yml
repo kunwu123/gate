@@ -2,8 +2,8 @@ name: VPN Gate Node Check
 
 on:
   schedule:
-    # 北京时间每天凌晨 4 点运行一次（对应 UTC 时间前一天 20:00）
-    - cron: '0 20 * * *' 
+    # 每天早上北京时间 4:00 运行（对应 UTC 时间前一天 20:00）
+    - cron: '0 20 * * *'
   workflow_dispatch:
     inputs:
       max_nodes:
@@ -19,22 +19,24 @@ on:
         required: false
         default: '25'
 
+# 必须权限配置
 permissions:
   contents: read
   pages: write
   id-token: write
 
+# 防止多个部署任务并发冲突
 concurrency:
-  group: gate-check
+  group: "pages"
   cancel-in-progress: false
 
 jobs:
-  check:
+  # ==========================================
+  # 任务 1：运行脚本并打包文件
+  # ==========================================
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,7 +55,7 @@ jobs:
           DOMAIN: ${{ secrets.DOMAIN }}
         run: |
           if [ -z "${DOMAIN}" ]; then
-            echo "::error::未配置检测地址。请在仓库 Settings → Secrets and variables → Actions 中新增 Secret：DOMAIN（只填 Worker 的 host，例如 abc.workers.dev）"
+            echo "::error::未配置检测地址。请在仓库 Settings → Secrets and variables → Actions 中新增 Secret：DOMAIN（只填 Worker 的 host）"
             exit 1
           fi
           echo "检测域名已配置：${DOMAIN}"
@@ -67,7 +69,7 @@ jobs:
           MIN_SUCCESS_RATIO: '0'
         run: python vpngate.py
 
-      # 确保 public 目录存在并打印内容（保留此步骤方便排错）
+      # 诊断打印，确认生成成功
       - name: Ensure public directory exists
         run: |
           mkdir -p public
@@ -76,54 +78,27 @@ jobs:
           echo "=== 统计 public 目录文件数量 ==="
           find public -type f | wc -l
 
-      - name: Ensure GitHub Pages is enabled
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -u
-          api="https://api.github.com/repos/${GITHUB_REPOSITORY}/pages"
-          auth=(-H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json")
-
-          status=$(curl -sS -o /tmp/pages.json -w '%{http_code}' "${auth[@]}" "${api}")
-          echo "GET ${api} -> ${status}"
-
-          if [ "${status}" = "200" ]; then
-            echo "GitHub Pages 已启用"
-            exit 0
-          fi
-
-          if [ "${status}" = "404" ]; then
-            create=$(curl -sS -o /tmp/pages-create.json -w '%{http_code}' -X POST \
-              "${auth[@]}" -H "Content-Type: application/json" \
-              -d '{"build_type":"workflow"}' "${api}")
-            echo "POST ${api} -> ${create}"
-            case "${create}" in
-              201|204|409)
-                echo "GitHub Pages 已启用（或已存在），等待生效"
-                sleep 10
-                exit 0
-                ;;
-              *)
-                echo "::error::自动启用 Pages 失败（HTTP ${create}）。请打开仓库 Settings → Pages，把 Source 选为 GitHub Actions，然后重新运行本工作流。"
-                cat /tmp/pages-create.json 2>/dev/null || true
-                exit 1
-                ;;
-            esac
-          fi
-
-          echo "::error::查询 Pages 状态失败（HTTP ${status}），请检查仓库 Pages 设置或工作流权限。"
-          cat /tmp/pages.json 2>/dev/null || true
-          exit 1
-
+      # 配置 Pages
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      # 使用最稳定的 v3 版本（避免之前 Found 0 artifact 的故障）
+      # 上传产物，使用最稳定的 v3 版本
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: public
 
+  # ==========================================
+  # 任务 2：专门负责部署到 GitHub Pages
+  # ==========================================
+  deploy:
+    # 关键：必须等待 build 任务成功完成后，才开始部署
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
